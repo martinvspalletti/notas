@@ -51,8 +51,9 @@ document.addEventListener("DOMContentLoaded", () => {
       .then((data) => {
         cursoSelect.innerHTML = "";
         data.forEach((curso) => {
+          console.log("Curso desde API:", curso); // 👈 revisá qué campos llegan
           const option = document.createElement("option");
-          option.value = curso.id_curso;
+          option.value = curso.id_curso; // ← confirmá que exista este campo
           option.textContent = curso.nombre;
           cursoSelect.appendChild(option);
         });
@@ -69,8 +70,13 @@ document.addEventListener("DOMContentLoaded", () => {
     .addEventListener("submit", async (e) => {
       e.preventDefault();
       const curso = cursoSelect.value;
+      if (!curso) {
+        alert("Debes seleccionar un curso antes de continuar.");
+        return;
+      }
 
       try {
+        console.log("Curso seleccionado en submit:", curso);
         const res = await fetch(
           `http://localhost:3000/api/notas?curso=${curso}`
         );
@@ -79,20 +85,19 @@ document.addEventListener("DOMContentLoaded", () => {
         datosOriginales = data;
         paginaActual = 1;
 
-        renderizarTabla(datosOriginales, paginaActual);
+        renderizarTabla(datosOriginales, paginaActual, curso);
         renderizarPaginacion(datosOriginales.length, registrosPorPagina);
       } catch (err) {
         console.error("Error al obtener notas:", err);
         tablaNotasBody.innerHTML = `
         <tr>
           <td colspan="7" class="text-danger text-center">Error al cargar las notas.</td>
-        </tr>
-      `;
+        </tr>`;
       }
     });
 
   // Renderizar tabla
-  function renderizarTabla(datos, pagina) {
+  function renderizarTabla(datos, pagina, curso) {
     tablaNotasBody.innerHTML = "";
 
     if (datos.length === 0) {
@@ -112,6 +117,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     datosPagina.forEach((nota) => {
       const row = document.createElement("tr");
+
+      // Guardamos el curso en cada fila
+      row.dataset.cursoId = parseInt(curso, 10);
+      console.log("Asignando curso a row.dataset.cursoId:", curso);
 
       // Nombre completo (sin coma inicial si falta apellido)
       const cellNombre = document.createElement("td");
@@ -137,7 +146,7 @@ document.addEventListener("DOMContentLoaded", () => {
       inputCuatri1.className = "form-control form-control-sm";
       inputCuatri1.value = nota.nota_primer_cuatrimestre?.toFixed(1) ?? "";
       inputCuatri1.dataset.alumnoId = nota.id_alumno;
-      inputCuatri1.dataset.cursoId = curso;
+      inputCuatri1.dataset.cursoId = row.dataset.cursoId;
       inputCuatri1.style.display = "none";
 
       const btnEditar1 = document.createElement("button");
@@ -171,6 +180,8 @@ document.addEventListener("DOMContentLoaded", () => {
       cellCuatri1.appendChild(inputCuatri1);
       cellCuatri1.appendChild(btnGuardar1);
       row.appendChild(cellCuatri1);
+
+      tablaNotasBody.appendChild(row);
 
       // Segundo cuatrimestre
       const cellCuatri2 = document.createElement("td");
@@ -287,65 +298,54 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Guardar cualquier campo editado
-  function guardarNota(
+  async function guardarNota(
     input,
     btnEditar,
     btnGuardar,
     span,
     campo,
-    notaOriginal,
-    fila
+    nota,
+    row
   ) {
-    const nuevaNota = parseFloat(input.value);
+    const idAlumno = input.dataset.alumnoId;
+    // 👇 en vez de row.dataset, leemos directo del select
+    const idCurso = parseInt(document.getElementById("curso").value, 10);
+    const valor = parseFloat(input.value);
 
-    if (isNaN(nuevaNota)) {
-      alert("La nota debe ser un número válido.");
+    console.log("Datos a enviar:", {
+      id_alumno: idAlumno,
+      id_curso: idCurso,
+      [campo]: valor,
+    });
+
+    if (isNaN(idCurso)) {
+      console.error("❌ Error: idCurso inválido", idCurso);
+      alert("Error: No se pudo identificar el curso.");
       return;
     }
 
-    if (nuevaNota < 0 || nuevaNota > 10) {
-      alert("La nota debe estar entre 0 y 10.");
-      input.focus();
-      return;
-    }
-
-    fetch("http://localhost:3000/api/guardar-nota", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id_alumno: parseInt(input.dataset.alumnoId),
-        id_curso: parseInt(input.dataset.cursoId),
-        [campo]: nuevaNota,
-      }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
-          span.textContent = nuevaNota.toFixed(1);
-          span.style.display = "inline-block";
-          input.style.display = "none";
-          btnGuardar.style.display = "none";
-          btnEditar.style.display = "inline-block";
-
-          const nuevaNotaFinal =
-            campo === "nota_final"
-              ? nuevaNota
-              : parseFloat(notaOriginal.nota_final) || 0;
-
-          const spanEstado = fila.cells[6].querySelector("span"); // Índice de 'Estado'
-          const nuevoEstado = calcularEstadoDesdeFinal(nuevaNotaFinal);
-
-          spanEstado.textContent = nuevoEstado;
-          spanEstado.className = ""; // Limpiar clase anterior
-          aplicarEstiloEstado(spanEstado, nuevoEstado);
-        } else {
-          alert("❌ No se pudo guardar la nota.");
-        }
-      })
-      .catch((err) => {
-        console.error("Error al guardar:", err);
-        alert("⚠️ Error al guardar la nota.");
+    try {
+      const res = await fetch("http://localhost:3000/api/guardar-nota", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id_alumno: idAlumno,
+          id_curso: idCurso,
+          [campo]: valor,
+        }),
       });
+
+      if (!res.ok) throw new Error("Error en la petición");
+
+      span.textContent = valor.toFixed(1);
+      span.style.display = "inline-block";
+      input.style.display = "none";
+      btnGuardar.style.display = "none";
+      btnEditar.style.display = "inline-block";
+    } catch (err) {
+      console.error("Error al guardar nota:", err);
+      alert("No se pudo guardar la nota");
+    }
   }
 
   // Calcular estado basado en nota_final
