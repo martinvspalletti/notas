@@ -123,11 +123,17 @@ app.get("/api/notas", async (req, res) => {
           Alumno.nombre, 
           Alumno.apellido, 
           Alumno.dni,
+          Nota.id_curso,
           Nota.nota_primer_cuatrimestre,
           Nota.nota_segundo_cuatrimestre,
-          Nota.nota_final
+          Nota.nota_final,
+          Curso.nombre AS curso_nombre,
+          Curso.anio,
+          Carrera.nombre AS carrera_nombre
         FROM Nota
         JOIN Alumno ON Nota.id_alumno = Alumno.id_alumno
+        JOIN Curso ON Nota.id_curso = Curso.id_curso
+        JOIN Carrera ON Curso.id_carrera = Carrera.id_carrera
         WHERE Nota.id_curso = @curso
       `);
 
@@ -135,6 +141,45 @@ app.get("/api/notas", async (req, res) => {
   } catch (err) {
     console.error("Error al obtener notas:", err);
     res.status(500).json({ error: "Error al obtener notas" });
+  }
+});
+
+// Ruta: Notas por DNI
+app.get("/api/notas-dni", async (req, res) => {
+  if (!pool)
+    return res
+      .status(500)
+      .json({ error: "No hay conexión a la base de datos" });
+
+  const { dni } = req.query;
+
+  if (!dni) return res.status(400).json({ error: "Falta el parámetro: dni" });
+
+  try {
+    const result = await pool.request().input("dni", sql.VarChar, dni).query(`
+        SELECT 
+          Alumno.id_alumno, 
+          Alumno.nombre, 
+          Alumno.apellido, 
+          Alumno.dni,
+          Nota.id_curso,
+          Nota.nota_primer_cuatrimestre,
+          Nota.nota_segundo_cuatrimestre,
+          Nota.nota_final,
+          Curso.nombre AS curso_nombre,
+          Curso.anio,
+          Carrera.nombre AS carrera_nombre
+        FROM Nota
+        JOIN Alumno ON Nota.id_alumno = Alumno.id_alumno
+        JOIN Curso ON Nota.id_curso = Curso.id_curso
+        JOIN Carrera ON Curso.id_carrera = Carrera.id_carrera
+        WHERE Alumno.dni = @dni
+      `);
+
+    res.json(result.recordset);
+  } catch (err) {
+    console.error("Error al obtener notas por DNI:", err);
+    res.status(500).json({ error: "Error al obtener notas por DNI" });
   }
 });
 

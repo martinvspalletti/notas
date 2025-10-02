@@ -1,293 +1,209 @@
-document.addEventListener("DOMContentLoaded", () => {
-  const carreraSelect = document.getElementById("carrera");
-  const anioSelect = document.getElementById("anio");
-  const cursoSelect = document.getElementById("curso");
-  const tablaNotasBody = document.querySelector("#tablaNotas tbody");
+document.addEventListener("DOMContentLoaded", function () {
+  var carreraSelect = document.getElementById("carrera");
+  var anioSelect = document.getElementById("anio");
+  var cursoSelect = document.getElementById("curso");
+  var tablaNotasBody = document.querySelector("#tablaNotas tbody");
 
-  // Elementos nuevos
-  const filtroDniInput = document.getElementById("filtroDni");
-  const paginador = document.getElementById("paginador");
-  let datosOriginales = [];
-  let paginaActual = 1;
-  const registrosPorPagina = 10;
+  var filtroDniInput = document.getElementById("filtroDni");
+  var paginador = document.getElementById("paginador");
+  var datosOriginales = [];
+  var paginaActual = 1;
+  var registrosPorPagina = 10;
 
   // Cargar carreras
   fetch("http://localhost:3000/api/carreras")
-    .then((res) => res.json())
-    .then((data) => {
-      data.forEach((carrera) => {
-        const option = document.createElement("option");
+    .then(function (res) {
+      return res.json();
+    })
+    .then(function (data) {
+      carreraSelect.innerHTML =
+        '<option value="">Selecciona una carrera</option>';
+      data.forEach(function (carrera) {
+        var option = document.createElement("option");
         option.value = carrera.id_carrera;
         option.textContent = carrera.nombre;
         carreraSelect.appendChild(option);
       });
     })
-    .catch((err) => console.error("Error al cargar carreras:", err));
+    .catch(function (err) {
+      console.error("Error al cargar carreras:", err);
+    });
 
-  // Cargar años desde la base de datos
+  // Cargar años
   fetch("http://localhost:3000/api/anios")
-    .then((res) => res.json())
-    .then((anios) => {
-      anioSelect.innerHTML = "";
-      anioSelect.innerHTML += `<option value="">Selecciona un año</option>`;
-      anios.forEach((anio) => {
-        const option = document.createElement("option");
+    .then(function (res) {
+      return res.json();
+    })
+    .then(function (anios) {
+      anioSelect.innerHTML = '<option value="">Selecciona un año</option>';
+      anios.forEach(function (anio) {
+        var option = document.createElement("option");
         option.value = anio;
-        option.textContent = `Año ${anio}`;
+        option.textContent = "Año " + anio;
         anioSelect.appendChild(option);
       });
     })
-    .catch((err) => console.error("Error al cargar años:", err));
+    .catch(function (err) {
+      console.error("Error al cargar años:", err);
+    });
 
-  // Cargar cursos al seleccionar carrera o año
+  // Cargar cursos
   function cargarCursos() {
-    const carrera = carreraSelect.value;
-    const anio = anioSelect.value;
-
-    if (!carrera || !anio) return;
-
-    fetch(`http://localhost:3000/api/cursos?carrera=${carrera}&anio=${anio}`)
-      .then((res) => res.json())
-      .then((data) => {
-        cursoSelect.innerHTML = "";
-        data.forEach((curso) => {
-          console.log("Curso desde API:", curso); // 👈 revisá qué campos llegan
-          const option = document.createElement("option");
-          option.value = curso.id_curso; // ← confirmá que exista este campo
+    var carrera = carreraSelect.value;
+    var anio = anioSelect.value;
+    if (!carrera || !anio) {
+      cursoSelect.innerHTML = '<option value="">Selecciona un curso</option>';
+      return;
+    }
+    fetch(
+      "http://localhost:3000/api/cursos?carrera=" +
+        encodeURIComponent(carrera) +
+        "&anio=" +
+        encodeURIComponent(anio)
+    )
+      .then(function (res) {
+        return res.json();
+      })
+      .then(function (data) {
+        cursoSelect.innerHTML = '<option value="">Selecciona un curso</option>';
+        data.forEach(function (curso) {
+          var option = document.createElement("option");
+          option.value = curso.id_curso;
           option.textContent = curso.nombre;
           cursoSelect.appendChild(option);
         });
       })
-      .catch((err) => console.error("Error al cargar cursos:", err));
+      .catch(function (err) {
+        console.error("Error al cargar cursos:", err);
+      });
   }
-
   carreraSelect.addEventListener("change", cargarCursos);
   anioSelect.addEventListener("change", cargarCursos);
 
-  // Buscar notas y mostrar en tabla editable
+  // parseo robusto
+  function parseGradeText(text) {
+    if (text === undefined || text === null) return NaN;
+    var t = String(text).trim().replace(",", ".");
+    if (t === "" || t === "-") return NaN;
+    var v = parseFloat(t);
+    return isNaN(v) ? NaN : v;
+  }
+
+  // Submit
   document
     .getElementById("formulario")
-    .addEventListener("submit", async (e) => {
+    .addEventListener("submit", function (e) {
       e.preventDefault();
-      const curso = cursoSelect.value;
-      if (!curso) {
-        alert("Debes seleccionar un curso antes de continuar.");
-        return;
-      }
-
-      try {
-        console.log("Curso seleccionado en submit:", curso);
-        const res = await fetch(
-          `http://localhost:3000/api/notas?curso=${curso}`
-        );
-        const data = await res.json();
-
-        datosOriginales = data;
-        paginaActual = 1;
-
-        renderizarTabla(datosOriginales, paginaActual, curso);
-        renderizarPaginacion(datosOriginales.length, registrosPorPagina);
-      } catch (err) {
-        console.error("Error al obtener notas:", err);
-        tablaNotasBody.innerHTML = `
-        <tr>
-          <td colspan="7" class="text-danger text-center">Error al cargar las notas.</td>
-        </tr>`;
+      var dni = filtroDniInput.value.trim();
+      var data = [];
+      if (dni) {
+        fetch(
+          "http://localhost:3000/api/notas-dni?dni=" + encodeURIComponent(dni)
+        )
+          .then(function (res) {
+            if (!res.ok) throw new Error("Error al obtener notas por DNI");
+            return res.json();
+          })
+          .then(function (json) {
+            datosOriginales = json;
+            paginaActual = 1;
+            renderizarTabla(datosOriginales, paginaActual);
+            renderizarPaginacion(datosOriginales.length, registrosPorPagina);
+          })
+          .catch(function (err) {
+            console.error("Error al obtener notas:", err);
+            tablaNotasBody.innerHTML =
+              '<tr><td colspan=10" class="text-danger text-center">Error al cargar las notas.</td></tr>';
+          });
+      } else {
+        var curso = cursoSelect.value;
+        if (!curso) {
+          alert("Debes seleccionar un curso o ingresar un DNI.");
+          return;
+        }
+        fetch(
+          "http://localhost:3000/api/notas?curso=" + encodeURIComponent(curso)
+        )
+          .then(function (res) {
+            if (!res.ok) throw new Error("Error al obtener notas por curso");
+            return res.json();
+          })
+          .then(function (json) {
+            datosOriginales = json;
+            paginaActual = 1;
+            renderizarTabla(datosOriginales, paginaActual);
+            renderizarPaginacion(datosOriginales.length, registrosPorPagina);
+          })
+          .catch(function (err) {
+            console.error("Error al obtener notas:", err);
+            tablaNotasBody.innerHTML =
+              '<tr><td colspan="10" class="text-danger text-center">Error al cargar las notas.</td></tr>';
+          });
       }
     });
 
-  // Renderizar tabla
-  function renderizarTabla(datos, pagina, curso) {
+  // renderizar tabla
+  function renderizarTabla(datos, pagina) {
     tablaNotasBody.innerHTML = "";
-
-    if (datos.length === 0) {
-      const row = document.createElement("tr");
-      const cell = document.createElement("td");
-      cell.setAttribute("colspan", "7");
+    if (!datos || datos.length === 0) {
+      var row = document.createElement("tr");
+      var cell = document.createElement("td");
+      cell.setAttribute("colspan", "10");
       cell.className = "text-center text-muted";
       cell.textContent = "No hay notas disponibles.";
       row.appendChild(cell);
       tablaNotasBody.appendChild(row);
       return;
     }
+    var inicio = (pagina - 1) * registrosPorPagina;
+    var fin = inicio + registrosPorPagina;
+    var datosPagina = datos.slice(inicio, fin);
+    datosPagina.forEach(function (nota) {
+      var row = document.createElement("tr");
 
-    const inicio = (pagina - 1) * registrosPorPagina;
-    const fin = inicio + registrosPorPagina;
-    const datosPagina = datos.slice(inicio, fin);
+      // Carrera, Año, Curso, Nombre, DNI
+      var cellCarrera = document.createElement("td");
+      cellCarrera.textContent = nota.carrera_nombre || "-";
+      row.appendChild(cellCarrera);
 
-    datosPagina.forEach((nota) => {
-      const row = document.createElement("tr");
+      var cellAnio = document.createElement("td");
+      cellAnio.textContent =
+        nota.anio !== undefined && nota.anio !== null ? nota.anio : "-";
+      row.appendChild(cellAnio);
 
-      // Guardamos el curso en cada fila
-      row.dataset.cursoId = parseInt(curso, 10);
-      console.log("Asignando curso a row.dataset.cursoId:", curso);
+      var cellCurso = document.createElement("td");
+      cellCurso.textContent = nota.curso_nombre || "-";
+      row.appendChild(cellCurso);
 
-      // Nombre completo (sin coma inicial si falta apellido)
-      const cellNombre = document.createElement("td");
-      const nombreCompleto = [nota.apellido, nota.nombre]
-        .filter(Boolean)
-        .join(" ");
-      cellNombre.textContent = nombreCompleto || "-";
+      var cellNombre = document.createElement("td");
+      cellNombre.textContent =
+        [nota.apellido, nota.nombre].filter(Boolean).join(" ") || "-";
       row.appendChild(cellNombre);
 
-      // DNI
-      const cellDni = document.createElement("td");
-      cellDni.textContent = nota.dni ?? "-";
+      var cellDni = document.createElement("td");
+      cellDni.textContent = nota.dni || "-";
       row.appendChild(cellDni);
 
-      // Primer cuatrimestre
-      const cellCuatri1 = document.createElement("td");
-      const spanCuatri1 = document.createElement("span");
-      spanCuatri1.textContent =
-        nota.nota_primer_cuatrimestre?.toFixed(1) ?? "-";
-
-      const inputCuatri1 = document.createElement("input");
-      inputCuatri1.type = "number";
-      inputCuatri1.className = "form-control form-control-sm";
-      inputCuatri1.value = nota.nota_primer_cuatrimestre?.toFixed(1) ?? "";
-      inputCuatri1.dataset.alumnoId = nota.id_alumno;
-      inputCuatri1.dataset.cursoId = row.dataset.cursoId;
-      inputCuatri1.style.display = "none";
-
-      const btnEditar1 = document.createElement("button");
-      btnEditar1.textContent = "Editar";
-      btnEditar1.className = "btn btn-outline-primary btn-sm ms-2";
-      btnEditar1.addEventListener("click", () => {
-        spanCuatri1.style.display = "none";
-        inputCuatri1.style.display = "inline-block";
-        btnGuardar1.style.display = "inline-block";
-        btnEditar1.style.display = "none";
-      });
-
-      const btnGuardar1 = document.createElement("button");
-      btnGuardar1.textContent = "Guardar";
-      btnGuardar1.className = "btn btn-success btn-sm ms-1";
-      btnGuardar1.style.display = "none";
-      btnGuardar1.addEventListener("click", () =>
-        guardarNota(
-          inputCuatri1,
-          btnEditar1,
-          btnGuardar1,
-          spanCuatri1,
-          "nota_primer_cuatrimestre",
-          nota,
-          row
-        )
-      );
-
-      cellCuatri1.appendChild(spanCuatri1);
-      cellCuatri1.appendChild(btnEditar1);
-      cellCuatri1.appendChild(inputCuatri1);
-      cellCuatri1.appendChild(btnGuardar1);
-      row.appendChild(cellCuatri1);
-
-      tablaNotasBody.appendChild(row);
-
-      // Segundo cuatrimestre
-      const cellCuatri2 = document.createElement("td");
-      const spanCuatri2 = document.createElement("span");
-      spanCuatri2.textContent =
-        nota.nota_segundo_cuatrimestre?.toFixed(1) ?? "-";
-
-      const inputCuatri2 = document.createElement("input");
-      inputCuatri2.type = "number";
-      inputCuatri2.className = "form-control form-control-sm";
-      inputCuatri2.value = nota.nota_segundo_cuatrimestre ?? "";
-      inputCuatri2.dataset.alumnoId = nota.id_alumno;
-      inputCuatri2.dataset.cursoId = curso;
-      inputCuatri2.style.display = "none";
-
-      const btnEditar2 = document.createElement("button");
-      btnEditar2.textContent = "Editar";
-      btnEditar2.className = "btn btn-outline-primary btn-sm ms-2";
-      btnEditar2.addEventListener("click", () => {
-        spanCuatri2.style.display = "none";
-        inputCuatri2.style.display = "inline-block";
-        btnGuardar2.style.display = "inline-block";
-        btnEditar2.style.display = "none";
-      });
-
-      const btnGuardar2 = document.createElement("button");
-      btnGuardar2.textContent = "Guardar";
-      btnGuardar2.className = "btn btn-success btn-sm ms-1";
-      btnGuardar2.style.display = "none";
-      btnGuardar2.addEventListener("click", () =>
-        guardarNota(
-          inputCuatri2,
-          btnEditar2,
-          btnGuardar2,
-          spanCuatri2,
-          "nota_segundo_cuatrimestre",
-          nota,
-          row
-        )
-      );
-
-      cellCuatri2.appendChild(spanCuatri2);
-      cellCuatri2.appendChild(btnEditar2);
-      cellCuatri2.appendChild(inputCuatri2);
-      cellCuatri2.appendChild(btnGuardar2);
-      row.appendChild(cellCuatri2);
-
-      // Nota final
-      const cellFinal = document.createElement("td");
-      const spanFinal = document.createElement("span");
-      spanFinal.textContent = nota.nota_final?.toFixed(1) ?? "-";
-
-      const inputFinal = document.createElement("input");
-      inputFinal.type = "number";
-      inputFinal.className = "form-control form-control-sm";
-      inputFinal.value = nota.nota_final ?? "";
-      inputFinal.dataset.alumnoId = nota.id_alumno;
-      inputFinal.dataset.cursoId = curso;
-      inputFinal.style.display = "none";
-
-      const btnEditarFinal = document.createElement("button");
-      btnEditarFinal.textContent = "Editar";
-      btnEditarFinal.className = "btn btn-outline-primary btn-sm ms-2";
-      btnEditarFinal.addEventListener("click", () => {
-        spanFinal.style.display = "none";
-        inputFinal.style.display = "inline-block";
-        btnGuardarFinal.style.display = "inline-block";
-        btnEditarFinal.style.display = "none";
-      });
-
-      const btnGuardarFinal = document.createElement("button");
-      btnGuardarFinal.textContent = "Guardar";
-      btnGuardarFinal.className = "btn btn-success btn-sm ms-1";
-      btnGuardarFinal.style.display = "none";
-      btnGuardarFinal.addEventListener("click", () =>
-        guardarNota(
-          inputFinal,
-          btnEditarFinal,
-          btnGuardarFinal,
-          spanFinal,
-          "nota_final",
-          nota,
-          row
-        )
-      );
-
-      cellFinal.appendChild(spanFinal);
-      cellFinal.appendChild(btnEditarFinal);
-      cellFinal.appendChild(inputFinal);
-      cellFinal.appendChild(btnGuardarFinal);
-      row.appendChild(cellFinal);
+      crearCeldaEditable(row, nota, "nota_primer_cuatrimestre");
+      crearCeldaEditable(row, nota, "nota_segundo_cuatrimestre");
+      crearCeldaEditable(row, nota, "nota_final");
 
       // Promedio
-      const cellPromedio = document.createElement("td");
-      const spanPromedio = document.createElement("span");
-      const n1 = parseFloat(nota.nota_primer_cuatrimestre) || 0;
-      const n2 = parseFloat(nota.nota_segundo_cuatrimestre) || 0;
-      const promedio = (n1 + n2) / 2;
+      var cellPromedio = document.createElement("td");
+      var spanPromedio = document.createElement("span");
+      var n1 = parseGradeText(nota.nota_primer_cuatrimestre);
+      var n2 = parseGradeText(nota.nota_segundo_cuatrimestre);
+      var promedio = NaN;
+      if (!isNaN(n1) && !isNaN(n2)) promedio = (n1 + n2) / 2;
+      else if (!isNaN(n1)) promedio = n1;
+      else if (!isNaN(n2)) promedio = n2;
       spanPromedio.textContent = isNaN(promedio) ? "-" : promedio.toFixed(1);
       cellPromedio.appendChild(spanPromedio);
       row.appendChild(cellPromedio);
 
       // Estado
-      const cellEstado = document.createElement("td");
-      const spanEstado = document.createElement("span");
-      spanEstado.id = `estado-${nota.id_alumno}-${nota.id_curso}`;
+      var cellEstado = document.createElement("td");
+      var spanEstado = document.createElement("span");
       spanEstado.textContent = calcularEstadoDesdeFinal(nota.nota_final);
       aplicarEstiloEstado(spanEstado, spanEstado.textContent);
       cellEstado.appendChild(spanEstado);
@@ -297,367 +213,259 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Guardar cualquier campo editado
-  async function guardarNota(
-    input,
-    btnEditar,
-    btnGuardar,
-    span,
-    campo,
-    nota,
-    row
-  ) {
-    const idAlumno = input.dataset.alumnoId;
-    // 👇 en vez de row.dataset, leemos directo del select
-    const idCurso = parseInt(document.getElementById("curso").value, 10);
-    const valor = parseFloat(input.value);
+  function crearCeldaEditable(row, nota, campo) {
+    var cell = document.createElement("td");
+    var span = document.createElement("span");
+    span.textContent =
+      nota[campo] !== null && nota[campo] !== undefined
+        ? parseFloat(nota[campo]).toFixed(1)
+        : "-";
 
-    console.log("Datos a enviar:", {
-      id_alumno: idAlumno,
-      id_curso: idCurso,
-      [campo]: valor,
+    var input = document.createElement("input");
+    input.type = "number";
+    input.className = "form-control form-control-sm";
+    input.value =
+      nota[campo] !== null && nota[campo] !== undefined
+        ? parseFloat(nota[campo]).toFixed(1)
+        : "";
+    input.dataset.alumnoId = nota.id_alumno;
+    input.dataset.cursoId = nota.id_curso;
+    input.style.display = "none";
+
+    var btnEditar = document.createElement("button");
+    btnEditar.type = "button";
+    btnEditar.textContent = "Editar";
+    btnEditar.className = "btn btn-outline-primary btn-sm ms-2";
+    btnEditar.addEventListener("click", function () {
+      span.style.display = "none";
+      input.style.display = "inline-block";
+      btnGuardar.style.display = "inline-block";
+      btnEditar.style.display = "none";
     });
 
+    var btnGuardar = document.createElement("button");
+    btnGuardar.type = "button";
+    btnGuardar.textContent = "Guardar";
+    btnGuardar.className = "btn btn-success btn-sm ms-1";
+    btnGuardar.style.display = "none";
+    btnGuardar.addEventListener("click", function () {
+      guardarNota(input, btnEditar, btnGuardar, span, campo, row);
+    });
+
+    cell.appendChild(span);
+    cell.appendChild(btnEditar);
+    cell.appendChild(input);
+    cell.appendChild(btnGuardar);
+    row.appendChild(cell);
+  }
+
+  function guardarNota(input, btnEditar, btnGuardar, span, campo, row) {
+    var idAlumno = parseInt(input.dataset.alumnoId, 10);
+    var idCurso = parseInt(input.dataset.cursoId, 10);
     if (isNaN(idCurso)) {
-      console.error("❌ Error: idCurso inválido", idCurso);
+      var selVal = document.getElementById("curso").value;
+      idCurso = selVal ? parseInt(selVal, 10) : NaN;
+    }
+    var valor = parseFloat(input.value);
+
+    if (isNaN(idCurso)) {
       alert("Error: No se pudo identificar el curso.");
       return;
     }
 
-    try {
-      const res = await fetch("http://localhost:3000/api/guardar-nota", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id_alumno: idAlumno,
-          id_curso: idCurso,
-          [campo]: valor,
-        }),
+    fetch("http://localhost:3000/api/guardar-nota", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id_alumno: idAlumno,
+        id_curso: idCurso,
+        [campo]: isNaN(valor) ? null : valor,
+      }),
+    })
+      .then(function (res) {
+        if (!res.ok) throw new Error("Error en la petición");
+        return res.json();
+      })
+      .then(function () {
+        span.textContent = !isNaN(valor) ? valor.toFixed(1) : "-";
+        span.style.display = "inline-block";
+        input.style.display = "none";
+        btnGuardar.style.display = "none";
+        btnEditar.style.display = "inline-block";
+
+        // actualizar datosOriginales
+        for (var i = 0; i < datosOriginales.length; i++) {
+          var d = datosOriginales[i];
+          if (
+            parseInt(d.id_alumno) === idAlumno &&
+            parseInt(d.id_curso) === idCurso
+          ) {
+            d[campo] = isNaN(valor) ? null : valor;
+            break;
+          }
+        }
+
+        actualizarPromedioYEstado(row);
+      })
+      .catch(function (err) {
+        console.error("Error al guardar nota:", err);
+        alert("No se pudo guardar la nota");
       });
+  }
 
-      if (!res.ok) throw new Error("Error en la petición");
+  function actualizarPromedioYEstado(row) {
+    var tds = row.querySelectorAll("td");
+    var n1 = parseGradeText(
+      tds[5] && tds[5].querySelector("span")
+        ? tds[5].querySelector("span").textContent
+        : undefined
+    );
+    var n2 = parseGradeText(
+      tds[6] && tds[6].querySelector("span")
+        ? tds[6].querySelector("span").textContent
+        : undefined
+    );
+    var finalVal = parseGradeText(
+      tds[7] && tds[7].querySelector("span")
+        ? tds[7].querySelector("span").textContent
+        : undefined
+    );
+    var promSpan =
+      tds[8] && tds[8].querySelector("span")
+        ? tds[8].querySelector("span")
+        : null;
+    var estadoSpan =
+      tds[9] && tds[9].querySelector("span")
+        ? tds[9].querySelector("span")
+        : null;
 
-      span.textContent = valor.toFixed(1);
-      span.style.display = "inline-block";
-      input.style.display = "none";
-      btnGuardar.style.display = "none";
-      btnEditar.style.display = "inline-block";
-    } catch (err) {
-      console.error("Error al guardar nota:", err);
-      alert("No se pudo guardar la nota");
+    var promedio = NaN;
+    if (!isNaN(n1) && !isNaN(n2)) promedio = (n1 + n2) / 2;
+    else if (!isNaN(n1)) promedio = n1;
+    else if (!isNaN(n2)) promedio = n2;
+    if (promSpan)
+      promSpan.textContent = isNaN(promedio) ? "-" : promedio.toFixed(1);
+
+    var estado = calcularEstadoDesdeFinal(finalVal);
+    if (estadoSpan) {
+      estadoSpan.textContent = estado;
+      aplicarEstiloEstado(estadoSpan, estado);
     }
   }
 
-  // Calcular estado basado en nota_final
   function calcularEstadoDesdeFinal(notaFinal) {
-    const final = parseFloat(notaFinal);
-
+    var final = parseFloat(notaFinal);
     if (isNaN(final)) return "Libre";
     if (final >= 8) return "Promovido";
     if (final >= 6) return "Regular";
     return "Libre";
   }
 
-  // Aplicar estilo visual al estado
   function aplicarEstiloEstado(span, estado) {
-    span.classList.remove(
-      "bg-success",
-      "bg-warning",
-      "bg-danger",
-      "text-white",
-      "p-1",
-      "rounded"
-    );
-
-    if (estado === "Promovido") {
+    span.className = "";
+    if (estado === "Promovido")
       span.classList.add("bg-success", "text-white", "p-1", "rounded");
-    } else if (estado === "Regular") {
+    else if (estado === "Regular")
       span.classList.add("bg-warning", "text-dark", "p-1", "rounded");
-    } else {
-      span.classList.add("bg-danger", "text-white", "p-1", "rounded");
-    }
+    else span.classList.add("bg-danger", "text-white", "p-1", "rounded");
   }
 
-  // Filtro por DNI
-  filtroDniInput.addEventListener("input", () => {
-    const dniFiltro = filtroDniInput.value.trim().toLowerCase();
-
+  // filtro DNI local
+  filtroDniInput.addEventListener("input", function () {
+    var dniFiltro = filtroDniInput.value.trim().toLowerCase();
     if (!datosOriginales || datosOriginales.length === 0) return;
-
-    let filtrados = [];
-
-    if (dniFiltro) {
-      filtrados = datosOriginales.filter((nota) => {
-        const dni = (nota.dni || "").toString().toLowerCase();
-        return dni.includes(dniFiltro);
-      });
-    } else {
-      // Si el campo está vacío, muestra todas las notas
-      filtrados = [...datosOriginales];
-    }
-
+    var filtrados = dniFiltro
+      ? datosOriginales.filter(function (n) {
+          return (
+            (n.dni || "").toString().toLowerCase().indexOf(dniFiltro) !== -1
+          );
+        })
+      : datosOriginales.slice();
     paginaActual = 1;
     renderizarTabla(filtrados, paginaActual);
     renderizarPaginacion(filtrados.length, registrosPorPagina);
   });
 
-  // Exportar a Excel
-  document.getElementById("exportarExcel").addEventListener("click", () => {
-    /* Obtener datos de la tabla visible */
-    const filas = document.querySelectorAll("#tablaNotas tbody tr");
-    const datos = [];
-
-    filas.forEach((fila) => {
-      const celdas = fila.querySelectorAll("td");
-      if (celdas.length === 7) {
-        datos.push([
-          celdas[0].textContent,
-          celdas[1].textContent,
-          celdas[2].querySelector("span")?.textContent,
-          celdas[3].querySelector("span")?.textContent,
-          celdas[4].querySelector("span")?.textContent,
-          celdas[5].textContent,
-          celdas[6].querySelector("span")?.textContent,
-        ]);
-      }
+  // exportar a excel
+  document
+    .getElementById("exportarExcel")
+    .addEventListener("click", function (e) {
+      e.preventDefault();
+      var filas = document.querySelectorAll("#tablaNotas tbody tr");
+      var datos = [];
+      filas.forEach(function (fila) {
+        var celdas = fila.querySelectorAll("td");
+        if (celdas.length === 10) {
+          datos.push([
+            celdas[0].textContent,
+            celdas[1].textContent,
+            celdas[2].textContent,
+            celdas[3].textContent,
+            celdas[4].textContent,
+            celdas[5].querySelector("span")
+              ? celdas[5].querySelector("span").textContent
+              : "",
+            celdas[6].querySelector("span")
+              ? celdas[6].querySelector("span").textContent
+              : "",
+            celdas[7].querySelector("span")
+              ? celdas[7].querySelector("span").textContent
+              : "",
+            celdas[8].textContent,
+            celdas[9].querySelector("span")
+              ? celdas[9].querySelector("span").textContent
+              : "",
+          ]);
+        }
+      });
+      var ws = XLSX.utils.aoa_to_sheet(
+        [
+          [
+            "Carrera",
+            "Año",
+            "Curso",
+            "Nombre",
+            "DNI",
+            "1er Cuat.",
+            "2do Cuat.",
+            "Nota Final",
+            "Promedio",
+            "Estado",
+          ],
+        ].concat(datos)
+      );
+      var wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Notas");
+      XLSX.writeFile(
+        wb,
+        "notas-" + new Date().toISOString().split("T")[0] + ".xlsx"
+      );
     });
 
-    /* Exportar a Excel */
-    const ws = XLSX.utils.aoa_to_sheet([
-      [
-        "Nombre",
-        "DNI",
-        "1er Cuat.",
-        "2do Cuat.",
-        "Nota Final",
-        "Promedio",
-        "Estado",
-      ],
-      ...datos,
-    ]);
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Notas");
-    XLSX.writeFile(wb, `notas-${new Date().toISOString().split("T")[0]}.xlsx`);
-  });
-
-  // Paginación
+  // paginacion
   function renderizarPaginacion(totalRegistros, registrosPorPagina) {
     paginador.innerHTML = "";
-
-    const totalPaginas = Math.ceil(totalRegistros / registrosPorPagina);
-
-    for (let i = 1; i <= totalPaginas; i++) {
-      const li = document.createElement("li");
+    var totalPaginas = Math.ceil(totalRegistros / registrosPorPagina);
+    if (totalPaginas <= 1) return;
+    for (var i = 1; i <= totalPaginas; i++) {
+      var li = document.createElement("li");
       li.className = "page-item";
-      const a = document.createElement("a");
+      if (i === paginaActual) li.classList.add("active");
+      var a = document.createElement("a");
       a.className = "page-link";
       a.href = "#";
       a.textContent = i;
-
-      a.addEventListener("click", (e) => {
+      a.addEventListener("click", function (e) {
         e.preventDefault();
-        paginaActual = i;
+        paginaActual = parseInt(this.textContent, 10);
         renderizarTabla(datosOriginales, paginaActual);
+        Array.from(paginador.children).forEach(function (c) {
+          c.classList.remove("active");
+        });
+        li.classList.add("active");
       });
-
       li.appendChild(a);
       paginador.appendChild(li);
     }
-  }
-
-  function renderizarTabla(datos, pagina) {
-    tablaNotasBody.innerHTML = "";
-
-    if (datos.length === 0) {
-      const row = document.createElement("tr");
-      const cell = document.createElement("td");
-      cell.setAttribute("colspan", "7");
-      cell.className = "text-center text-muted";
-      cell.textContent = "No hay notas disponibles.";
-      row.appendChild(cell);
-      tablaNotasBody.appendChild(row);
-      return;
-    }
-
-    const inicio = (pagina - 1) * registrosPorPagina;
-    const fin = inicio + registrosPorPagina;
-    const datosPagina = datos.slice(inicio, fin);
-
-    datosPagina.forEach((nota) => {
-      const row = document.createElement("tr");
-
-      // Nombre completo
-      const cellNombre = document.createElement("td");
-      const nombreCompleto = [nota.apellido, nota.nombre]
-        .filter(Boolean)
-        .join(" ");
-      cellNombre.textContent = nombreCompleto || "-";
-      row.appendChild(cellNombre);
-
-      // DNI – Aquí estaba el problema
-      const cellDni = document.createElement("td");
-      const dni = nota.dni ? nota.dni.toString() : "";
-      cellDni.textContent = dni || "-";
-      row.appendChild(cellDni);
-
-      // Primer cuatrimestre
-      const cellCuatri1 = document.createElement("td");
-      const spanCuatri1 = document.createElement("span");
-      spanCuatri1.textContent =
-        nota.nota_primer_cuatrimestre?.toFixed(1) ?? "-";
-
-      const inputCuatri1 = document.createElement("input");
-      inputCuatri1.type = "number";
-      inputCuatri1.className = "form-control form-control-sm";
-      inputCuatri1.value = nota.nota_primer_cuatrimestre?.toFixed(1) ?? "";
-      inputCuatri1.dataset.alumnoId = nota.id_alumno;
-      inputCuatri1.dataset.cursoId = nota.id_curso;
-      inputCuatri1.style.display = "none";
-
-      const btnEditar1 = document.createElement("button");
-      btnEditar1.textContent = "Editar";
-      btnEditar1.className = "btn btn-outline-primary btn-sm ms-2";
-      btnEditar1.addEventListener("click", () => {
-        spanCuatri1.style.display = "none";
-        inputCuatri1.style.display = "inline-block";
-        btnGuardar1.style.display = "inline-block";
-        btnEditar1.style.display = "none";
-      });
-
-      const btnGuardar1 = document.createElement("button");
-      btnGuardar1.textContent = "Guardar";
-      btnGuardar1.className = "btn btn-success btn-sm ms-1";
-      btnGuardar1.style.display = "none";
-      btnGuardar1.addEventListener("click", () =>
-        guardarNota(
-          inputCuatri1,
-          btnEditar1,
-          btnGuardar1,
-          spanCuatri1,
-          "nota_primer_cuatrimestre",
-          nota,
-          row
-        )
-      );
-
-      cellCuatri1.appendChild(spanCuatri1);
-      cellCuatri1.appendChild(btnEditar1);
-      cellCuatri1.appendChild(inputCuatri1);
-      cellCuatri1.appendChild(btnGuardar1);
-      row.appendChild(cellCuatri1);
-
-      // Segundo cuatrimestre
-      const cellCuatri2 = document.createElement("td");
-      const spanCuatri2 = document.createElement("span");
-      spanCuatri2.textContent =
-        nota.nota_segundo_cuatrimestre?.toFixed(1) ?? "-";
-
-      const inputCuatri2 = document.createElement("input");
-      inputCuatri2.type = "number";
-      inputCuatri2.className = "form-control form-control-sm";
-      inputCuatri2.value = nota.nota_segundo_cuatrimestre ?? "";
-      inputCuatri2.dataset.alumnoId = nota.id_alumno;
-      inputCuatri2.dataset.cursoId = nota.id_curso;
-      inputCuatri2.style.display = "none";
-
-      const btnEditar2 = document.createElement("button");
-      btnEditar2.textContent = "Editar";
-      btnEditar2.className = "btn btn-outline-primary btn-sm ms-2";
-      btnEditar2.addEventListener("click", () => {
-        spanCuatri2.style.display = "none";
-        inputCuatri2.style.display = "inline-block";
-        btnGuardar2.style.display = "inline-block";
-        btnEditar2.style.display = "none";
-      });
-
-      const btnGuardar2 = document.createElement("button");
-      btnGuardar2.textContent = "Guardar";
-      btnGuardar2.className = "btn btn-success btn-sm ms-1";
-      btnGuardar2.style.display = "none";
-      btnGuardar2.addEventListener("click", () =>
-        guardarNota(
-          inputCuatri2,
-          btnEditar2,
-          btnGuardar2,
-          spanCuatri2,
-          "nota_segundo_cuatrimestre",
-          nota,
-          row
-        )
-      );
-
-      cellCuatri2.appendChild(spanCuatri2);
-      cellCuatri2.appendChild(btnEditar2);
-      cellCuatri2.appendChild(inputCuatri2);
-      cellCuatri2.appendChild(btnGuardar2);
-      row.appendChild(cellCuatri2);
-
-      // Nota final
-      const cellFinal = document.createElement("td");
-      const spanFinal = document.createElement("span");
-      spanFinal.textContent = nota.nota_final?.toFixed(1) ?? "-";
-
-      const inputFinal = document.createElement("input");
-      inputFinal.type = "number";
-      inputFinal.className = "form-control form-control-sm";
-      inputFinal.value = nota.nota_final ?? "";
-      inputFinal.dataset.alumnoId = nota.id_alumno;
-      inputFinal.dataset.cursoId = nota.id_curso;
-      inputFinal.style.display = "none";
-
-      const btnEditarFinal = document.createElement("button");
-      btnEditarFinal.textContent = "Editar";
-      btnEditarFinal.className = "btn btn-outline-primary btn-sm ms-2";
-      btnEditarFinal.addEventListener("click", () => {
-        spanFinal.style.display = "none";
-        inputFinal.style.display = "inline-block";
-        btnGuardarFinal.style.display = "inline-block";
-        btnEditarFinal.style.display = "none";
-      });
-
-      const btnGuardarFinal = document.createElement("button");
-      btnGuardarFinal.textContent = "Guardar";
-      btnGuardarFinal.className = "btn btn-success btn-sm ms-1";
-      btnGuardarFinal.style.display = "none";
-      btnGuardarFinal.addEventListener("click", () =>
-        guardarNota(
-          inputFinal,
-          btnEditarFinal,
-          btnGuardarFinal,
-          spanFinal,
-          "nota_final",
-          nota,
-          row
-        )
-      );
-
-      cellFinal.appendChild(spanFinal);
-      cellFinal.appendChild(btnEditarFinal);
-      cellFinal.appendChild(inputFinal);
-      cellFinal.appendChild(btnGuardarFinal);
-      row.appendChild(cellFinal);
-
-      // Promedio
-      const cellPromedio = document.createElement("td");
-      const spanPromedio = document.createElement("span");
-      const n1 = parseFloat(nota.nota_primer_cuatrimestre) || 0;
-      const n2 = parseFloat(nota.nota_segundo_cuatrimestre) || 0;
-      const promedio = (n1 + n2) / 2;
-      spanPromedio.textContent = isNaN(promedio) ? "-" : promedio.toFixed(1);
-      cellPromedio.appendChild(spanPromedio);
-      row.appendChild(cellPromedio);
-
-      // Estado
-      const cellEstado = document.createElement("td");
-      const spanEstado = document.createElement("span");
-      spanEstado.id = `estado-${nota.id_alumno}-${nota.id_curso}`;
-      spanEstado.textContent = calcularEstadoDesdeFinal(nota.nota_final);
-      aplicarEstiloEstado(spanEstado, spanEstado.textContent);
-      cellEstado.appendChild(spanEstado);
-      row.appendChild(cellEstado);
-
-      tablaNotasBody.appendChild(row);
-    });
   }
 });
